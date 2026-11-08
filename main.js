@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+// ─── Mobile Performance Detection ──────────────────────────────────────────
+const isMobile = (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) ||
+  (typeof window !== 'undefined' && (window.innerWidth <= 840 || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && window.innerWidth <= 1024)));
+
 // ─── Scene & Renderer ─────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 // Breathtaking cinematic dusk twilight sky gradient matching the reference photo
@@ -67,11 +71,18 @@ scene.fog = new THREE.FogExp2(0x132034, 0.0034);
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(4.4, 2.65, 7.65);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const maxDPR = isMobile ? 1.25 : 1.75;
+const renderer = new THREE.WebGLRenderer({
+  antialias: !isMobile,
+  powerPreference: 'high-performance',
+  precision: isMobile ? 'mediump' : 'highp',
+  stencil: false,
+  depth: true,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
@@ -98,7 +109,7 @@ scene.add(new THREE.HemisphereLight(0x2a4a72, 0x0d1830, 1.6));
 const keyLight = new THREE.DirectionalLight(0xffd5a4, 2.65);
 keyLight.position.set(4, 8, 5);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
 keyLight.shadow.camera.left = -7;
 keyLight.shadow.camera.right = 7;
 keyLight.shadow.camera.top = 7;
@@ -120,11 +131,21 @@ moonLight.position.set(38, 58, -25);
 scene.add(moonLight);
 
 // ─── Universal Modeling Helpers ───────────────────────────────────────────────
+function enableVehicleShadows(root) {
+  if (!root) return;
+  root.traverse((c) => {
+    if (c.isMesh) {
+      c.castShadow = true;
+      c.receiveShadow = true;
+    }
+  });
+}
+
 function box(parent, size, position, material, options = {}) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
   mesh.position.set(...position);
   if (options.rotation) mesh.rotation.set(...options.rotation);
-  mesh.castShadow = options.castShadow ?? true;
+  mesh.castShadow = options.castShadow ?? false;
   mesh.receiveShadow = options.receiveShadow ?? true;
   parent.add(mesh);
   return mesh;
@@ -134,39 +155,41 @@ function cylinder(parent, rTop, rBot, height, segments, pos, rot, mat, options =
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, height, segments), mat);
   mesh.position.set(...pos);
   if (rot) mesh.rotation.set(...rot);
-  mesh.castShadow = options.castShadow ?? true;
+  mesh.castShadow = options.castShadow ?? false;
   mesh.receiveShadow = options.receiveShadow ?? true;
   parent.add(mesh);
   return mesh;
 }
 
-function sphere(parent, scale, position, material) {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), material);
+function sphere(parent, scale, position, material, options = {}) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), material);
   mesh.scale.set(...scale);
   mesh.position.set(...position);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.castShadow = options.castShadow ?? false;
+  mesh.receiveShadow = options.receiveShadow ?? true;
   parent.add(mesh);
   return mesh;
 }
 
-function torus(parent, r, tube, radSeg, tubSeg, pos, rot, mat) {
+function torus(parent, r, tube, radSeg, tubSeg, pos, rot, mat, options = {}) {
   const mesh = new THREE.Mesh(new THREE.TorusGeometry(r, tube, radSeg, tubSeg), mat);
   mesh.position.set(...pos);
   if (rot) mesh.rotation.set(...rot);
-  mesh.castShadow = true;
+  mesh.castShadow = options.castShadow ?? false;
+  mesh.receiveShadow = options.receiveShadow ?? true;
   parent.add(mesh);
   return mesh;
 }
 
-function beamBetween(parent, start, end, radius, material, sides = 12) {
+function beamBetween(parent, start, end, radius, material, sides = 10, options = {}) {
   const from = new THREE.Vector3(...start);
   const to = new THREE.Vector3(...end);
   const direction = to.clone().sub(from);
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, direction.length(), sides), material);
   mesh.position.copy(from).add(to).multiplyScalar(0.5);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  mesh.castShadow = true;
+  mesh.castShadow = options.castShadow ?? false;
+  mesh.receiveShadow = options.receiveShadow ?? true;
   parent.add(mesh);
   return mesh;
 }
@@ -909,7 +932,11 @@ const CAR_CATALOG = [
   },
 ];
 
-const playerCarData = CAR_CATALOG.map((item) => ({ ...item, ...item.builder() }));
+const playerCarData = CAR_CATALOG.map((item) => {
+  const built = { ...item, ...item.builder() };
+  enableVehicleShadows(built.root);
+  return built;
+});
 
 const car = new THREE.Group();
 car.position.z = 1.55;
@@ -1301,6 +1328,7 @@ function assignTrafficCars() {
     // Build a dedicated, independent 3D car model instance for this slot
     const meta = CAR_CATALOG[modelIndex];
     const carInstance = { ...meta, ...meta.builder() };
+    enableVehicleShadows(carInstance.root);
     slotGroup.add(carInstance.root);
 
     if (slot.dir < 0) {
@@ -1762,12 +1790,10 @@ const facadeMaterials = facadeColors.map((color) => new THREE.MeshStandardMateri
   metalness: 0.35,
   roughness: 0.65,
 }));
-const facadeGlass = new THREE.MeshPhysicalMaterial({
+const facadeGlass = new THREE.MeshStandardMaterial({
   color: 0x14202e,
-  metalness: 0.72,
-  roughness: 0.18,
-  clearcoat: 0.85,
-  clearcoatRoughness: 0.15,
+  metalness: 0.85,
+  roughness: 0.15,
 });
 const windowWarm = new THREE.MeshStandardMaterial({
   color: 0xffba55,
@@ -1965,7 +1991,7 @@ function buildKK100Supertall(x, z) {
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
-  const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x122438, metalness: 0.82, roughness: 0.14, clearcoat: 1.0 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x122438, metalness: 0.85, roughness: 0.12 });
   const totalH = 138;
   const tiers = 6;
 
@@ -2021,7 +2047,7 @@ function buildSlantedGlassTower(x, z) {
   const group = new THREE.Group();
   group.position.set(x, 0, z);
 
-  const modernMat = new THREE.MeshPhysicalMaterial({ color: 0x1a2e44, metalness: 0.78, roughness: 0.16, clearcoat: 0.9 });
+  const modernMat = new THREE.MeshStandardMaterial({ color: 0x1a2e44, metalness: 0.85, roughness: 0.15 });
   const h = 98;
   box(group, [18, h, 18], [0, h / 2, 0], modernMat);
   for (let lvl = 2; lvl < 26; lvl += 2) {
@@ -2078,12 +2104,10 @@ function buildOneWorldTradeCenter(x, z) {
   const owtc = new THREE.Group();
   owtc.position.set(x, 0, z);
 
-  const glassMat = new THREE.MeshPhysicalMaterial({
+  const glassMat = new THREE.MeshStandardMaterial({
     color: 0x3d7098,
     roughness: 0.08,
     metalness: 0.92,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
   });
   const podiumMat = new THREE.MeshStandardMaterial({
     color: 0x68707a,
@@ -2523,24 +2547,32 @@ for (const side of [-1, 1]) {
 
 // ─── City Glow Accent Point Lights (Waterfront Atmosphere) ───────────────────
 // Amber streetlight halos along the inland side
-for (let i = 0; i < 12; i++) {
-  const pl = new THREE.PointLight(0xff9933, 3.2, 28, 2.0);
-  pl.position.set(-220 + i * 42, 7.2, 7.8);
+const amberCount = isMobile ? 3 : 8;
+for (let i = 0; i < amberCount; i++) {
+  const pl = new THREE.PointLight(0xff9933, isMobile ? 3.8 : 3.2, isMobile ? 36 : 28, 2.0);
+  pl.position.set(-220 + i * (260 / amberCount), 7.2, 7.8);
   scene.add(pl);
 }
 // Cyan/teal glow from the water-side railing (city-on-water reflection feel)
-for (let i = 0; i < 8; i++) {
-  const pl = new THREE.PointLight(0x22aaff, 1.8, 20, 2.2);
-  pl.position.set(-175 + i * 54, 3.5, -8.8);
+const tealCount = isMobile ? 2 : 5;
+for (let i = 0; i < tealCount; i++) {
+  const pl = new THREE.PointLight(0x22aaff, isMobile ? 2.4 : 1.8, isMobile ? 30 : 20, 2.2);
+  pl.position.set(-175 + i * (260 / tealCount), 3.5, -8.8);
   scene.add(pl);
 }
 // Deep emerald green from Brooklyn Bridge necklace lights reflecting on walkway
-const bridgeGlow1 = new THREE.PointLight(0x00ff88, 2.4, 22, 2.0);
-bridgeGlow1.position.set(-15, 5, -18);
-scene.add(bridgeGlow1);
-const bridgeGlow2 = new THREE.PointLight(0x00ff88, 1.8, 18, 2.0);
-bridgeGlow2.position.set(10, 4, -22);
-scene.add(bridgeGlow2);
+if (!isMobile) {
+  const bridgeGlow1 = new THREE.PointLight(0x00ff88, 2.4, 22, 2.0);
+  bridgeGlow1.position.set(-15, 5, -18);
+  scene.add(bridgeGlow1);
+  const bridgeGlow2 = new THREE.PointLight(0x00ff88, 1.8, 18, 2.0);
+  bridgeGlow2.position.set(10, 4, -22);
+  scene.add(bridgeGlow2);
+} else {
+  const bridgeGlow = new THREE.PointLight(0x00ff88, 2.2, 28, 2.0);
+  bridgeGlow.position.set(0, 5, -20);
+  scene.add(bridgeGlow);
+}
 
 // ─── ROUTE 1: ELEVATED EXPRESSWAY / SKYWAY (y = 7.8) ───────────────────────────
 const skywayGroup = new THREE.Group();
@@ -3229,13 +3261,14 @@ function makePersonVariant(skinColor, hairColor, shirtColor) {
   };
 }
 
-for (let i = 0; i < 42; i++) {
+const walkerTotal = isMobile ? 12 : 42;
+for (let i = 0; i < walkerTotal; i++) {
   const lane = walkerLanes[i % walkerLanes.length];
   const skinColor  = skinPalette[Math.floor(seeded(i * 7) * skinPalette.length)];
   const hairColor  = hairPalette[Math.floor(seeded(i * 11) * hairPalette.length)];
   const shirtColor = shirtPalette[Math.floor(seeded(i * 13) * shirtPalette.length)];
   const person = makePersonVariant(skinColor, hairColor, shirtColor);
-  const startX = -195 + i * 10;
+  const startX = -195 + i * (400 / walkerTotal);
   const scale = 0.88 + seeded(i * 17) * 0.24;
   person.group.scale.setScalar(scale);
   person.group.position.set(startX, 0.045, lane.z);
@@ -3538,7 +3571,7 @@ function updateTouchSteering() {
 
 function bindTouchButton(id, key) {
   const btn = document.getElementById(id);
-  if (!btn) return;
+  if (!btn || typeof btn.addEventListener !== 'function') return;
 
   const onDown = (e) => {
     e.preventDefault();
@@ -3570,7 +3603,7 @@ function resize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.75));
 }
 window.addEventListener('resize', resize);
 
