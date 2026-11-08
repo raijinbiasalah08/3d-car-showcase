@@ -1,0 +1,9 @@
+{
+  "appId": "com.raijin.carshowcase",
+  "appName": "3D Car Showcase",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

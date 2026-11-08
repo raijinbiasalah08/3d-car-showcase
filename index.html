@@ -2,47 +2,57 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#d2d4cf" />
-    <title>VERDE R1 — Hypercar Study</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="3D Cars" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <title>3D Hypercar Studio &amp; Multi-Route City Showcase</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 
       :root {
-        color-scheme: light;
-        font-family: 'Manrope', 'Segoe UI', sans-serif;
+        color-scheme: dark;
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         color: #f1f3ed;
-        background: #17202a;
+        background: #0d1117;
         font-synthesis: none;
         text-rendering: optimizeLegibility;
         -webkit-font-smoothing: antialiased;
       }
 
-      * { box-sizing: border-box; }
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
       html, body {
         width: 100%;
         height: 100%;
         margin: 0;
         overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
       }
 
-      body { position: relative; }
-      canvas { display: block; }
+      body { position: relative; background: #0d1117; }
+      canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
       .hud {
         position: fixed;
         inset: 0;
         z-index: 2;
         pointer-events: none;
-        padding: clamp(22px, 4vw, 56px);
+        padding: clamp(16px, 3.5vw, 48px);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
       }
 
-      .masthead { display: flex; align-items: flex-start; justify-content: space-between; }
-      .footline { display: flex; align-items: flex-end; justify-content: space-between; }
+      .masthead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .footline { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: clamp(68px, 10vh, 88px); }
       .identity { display: flex; gap: 14px; align-items: flex-start; }
       .monogram {
         display: grid;
@@ -55,6 +65,8 @@
         font-weight: 800;
         letter-spacing: -.08em;
         flex-shrink: 0;
+        background: rgba(13, 17, 23, 0.45);
+        backdrop-filter: blur(8px);
       }
       .eyebrow, .spec-label, .gesture, .edition {
         font-family: 'DM Mono', Consolas, monospace;
@@ -63,15 +75,15 @@
         text-transform: uppercase;
       }
       .eyebrow { opacity: .62; margin: 0 0 4px; }
-      h1 { margin: 0; font-size: clamp(20px, 2.3vw, 29px); letter-spacing: .08em; font-weight: 700; line-height: 1; }
-      .edition { opacity: .58; text-align: right; line-height: 1.7; flex-shrink: 0; }
-      .descriptor { max-width: 290px; }
+      h1 { margin: 0; font-size: clamp(18px, 2.2vw, 28px); letter-spacing: .08em; font-weight: 700; line-height: 1; }
+      .edition { opacity: .68; text-align: right; line-height: 1.6; flex-shrink: 0; font-family: 'DM Mono', Consolas, monospace; }
+      .descriptor { max-width: 290px; pointer-events: auto; }
       .descriptor p { margin: 0; }
-      .descriptor .eyebrow { margin-bottom: 8px; }
-      .descriptor .copy { font-size: 12px; line-height: 1.65; opacity: .68; }
-      .gesture { display: flex; gap: 22px; opacity: .58; }
+      .descriptor .eyebrow { margin-bottom: 6px; }
+      .descriptor .copy { font-size: 11px; line-height: 1.55; opacity: .72; }
+      .gesture { display: flex; gap: 18px; opacity: .58; }
       .gesture span { white-space: nowrap; }
-      .gesture b { font-weight: 500; opacity: .7; margin-right: 6px; }
+      .gesture b { font-weight: 500; opacity: .7; margin-right: 5px; }
 
       .selector-rows {
         display: flex;
@@ -98,18 +110,21 @@
         gap: 5px;
         flex-wrap: wrap;
       }
+
       .car-btn, .route-btn {
         font-family: 'DM Mono', Consolas, monospace;
         font-size: 9px;
         letter-spacing: .08em;
         text-transform: uppercase;
         background: rgba(255, 255, 255, 0.08);
-        color: rgba(241, 243, 237, 0.72);
+        color: rgba(241, 243, 237, 0.76);
         border: 1px solid rgba(255, 255, 255, 0.18);
-        padding: 4px 10px;
+        padding: 5px 11px;
         border-radius: 18px;
         cursor: pointer;
-        transition: all .2s ease;
+        transition: all .18s ease;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
       }
       .car-btn:hover, .route-btn:hover {
         background: rgba(255, 255, 255, 0.22);
@@ -121,23 +136,93 @@
         color: #121820;
         border-color: #fff;
         font-weight: 700;
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
       }
       .route-btn.active {
         background: #00e5ff;
         color: #071018;
         border-color: #00e5ff;
         font-weight: 700;
-        box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+        box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
       }
 
-      @media (max-width: 600px) {
-        .hud { padding: 20px; }
-        .edition { font-size: 8px; }
-        .descriptor { max-width: 190px; }
-        .descriptor .copy { font-size: 10px; }
-        .gesture { flex-direction: column; gap: 7px; text-align: right; font-size: 8px; }
+      /* ─── Mobile On-Screen Touch Controls ─── */
+      .mobile-controls {
+        position: fixed;
+        bottom: clamp(14px, 3vh, 28px);
+        left: 0;
+        right: 0;
+        padding: 0 clamp(16px, 4vw, 36px);
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .touch-cluster {
+        display: flex;
+        gap: 12px;
+        pointer-events: auto;
+      }
+
+      .touch-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(18, 26, 36, 0.78);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1.5px solid rgba(255, 255, 255, 0.24);
+        color: #f1f3ed;
+        font-family: 'DM Mono', Consolas, monospace;
+        font-size: 20px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        touch-action: none;
+        transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      }
+
+      .touch-btn:active, .touch-btn.active-touch {
+        transform: scale(0.92);
+        background: rgba(0, 229, 255, 0.38);
+        border-color: #00e5ff;
+        box-shadow: 0 0 20px rgba(0, 229, 255, 0.7);
+      }
+
+      .touch-pedal {
+        width: 76px;
+        height: 60px;
+        border-radius: 18px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      .pedal-gas:active, .pedal-gas.active-touch {
+        background: rgba(132, 204, 22, 0.45);
+        border-color: #bef264;
+        box-shadow: 0 0 22px rgba(132, 204, 22, 0.75);
+      }
+
+      .pedal-brake:active, .pedal-brake.active-touch {
+        background: rgba(239, 68, 68, 0.45);
+        border-color: #f87171;
+        box-shadow: 0 0 22px rgba(239, 68, 68, 0.75);
+      }
+
+      @media (max-width: 768px) {
+        .hud { padding: 14px; }
+        .edition { font-size: 8px; line-height: 1.4; }
+        .descriptor { max-width: 200px; display: none; }
+        .gesture { display: none; }
         .car-selector, .route-selector { gap: 4px; }
-        .car-btn, .route-btn { font-size: 8px; padding: 3px 7px; }
+        .car-btn, .route-btn { font-size: 8px; padding: 4px 8px; }
+        .footline { margin-bottom: 0; }
+        .touch-btn { width: 54px; height: 54px; font-size: 17px; }
+        .touch-pedal { width: 68px; height: 54px; font-size: 10px; }
       }
     </style>
   </head>
@@ -189,6 +274,27 @@
         </div>
       </footer>
     </main>
+
+    <!-- On-Screen Touch Controls for Mobile & Tablet Driving -->
+    <div class="mobile-controls" id="mobile-controls" aria-label="Mobile Driving Controls">
+      <div class="touch-cluster touch-steer">
+        <button class="touch-btn" id="btn-left" aria-label="Steer Left">◀</button>
+        <button class="touch-btn" id="btn-right" aria-label="Steer Right">▶</button>
+      </div>
+      <div class="touch-cluster touch-pedals">
+        <button class="touch-btn touch-pedal pedal-brake" id="btn-brake" aria-label="Brake">BRAKE</button>
+        <button class="touch-btn touch-pedal pedal-gas" id="btn-gas" aria-label="Gas / Accelerate">GAS</button>
+      </div>
+    </div>
+
     <script type="module" src="/main.js"></script>
+    <script>
+      // Register Progressive Web App (PWA) Service Worker
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

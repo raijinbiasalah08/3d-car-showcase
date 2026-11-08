@@ -5,6 +5,14 @@ package-lock.json
 # Production build outputs
 dist/
 
+# Android build outputs
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+*.apk
+*.aab
+
 # Scratch and debug files
 scratch/
 *.log
@@ -14,4 +22,4 @@ scratch/
 Thumbs.db
 .vscode/
 .idea/
-
+.vercel

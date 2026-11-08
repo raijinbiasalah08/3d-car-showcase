@@ -3529,6 +3529,43 @@ document.querySelectorAll('.route-btn').forEach((btn) => {
   });
 });
 
+// ─── Touch Driving Controls (Mobile & Tablet) ─────────────────────────────────
+function updateTouchSteering() {
+  const left = keysDown.has('arrowleft') || keysDown.has('a');
+  const right = keysDown.has('arrowright') || keysDown.has('d');
+  targetSteer = left && !right ? -1 : right && !left ? 1 : 0;
+}
+
+function bindTouchButton(id, key) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+
+  const onDown = (e) => {
+    e.preventDefault();
+    keysDown.add(key);
+    btn.classList.add('active-touch');
+    updateTouchSteering();
+  };
+
+  const onUp = (e) => {
+    e.preventDefault();
+    keysDown.delete(key);
+    btn.classList.remove('active-touch');
+    updateTouchSteering();
+  };
+
+  btn.addEventListener('pointerdown', onDown);
+  btn.addEventListener('pointerup', onUp);
+  btn.addEventListener('pointerleave', onUp);
+  btn.addEventListener('pointercancel', onUp);
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+bindTouchButton('btn-left', 'a');
+bindTouchButton('btn-right', 'd');
+bindTouchButton('btn-gas', 'w');
+bindTouchButton('btn-brake', 's');
+
 function resize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
