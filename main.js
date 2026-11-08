@@ -2,9 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ─── Mobile Performance Detection ──────────────────────────────────────────
-const isMobile = (typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) ||
-  (typeof window !== 'undefined' && (window.innerWidth <= 840 || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && window.innerWidth <= 1024)));
+// ─── Mobile & iOS Performance Detection ──────────────────────────────────
+const isIOS = typeof navigator !== 'undefined' && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+  (/Apple/.test(navigator.vendor) && typeof window !== 'undefined' && 'ontouchend' in document)
+);
+const isMobile = isIOS || (typeof navigator !== 'undefined' && /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) ||
+  (typeof window !== 'undefined' && (window.innerWidth <= 1024 || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)));
 
 // ─── Scene & Renderer ─────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -71,18 +76,18 @@ scene.fog = new THREE.FogExp2(0x132034, 0.0034);
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(4.4, 2.65, 7.65);
 
-const maxDPR = isMobile ? 1.25 : 1.75;
+const maxDPR = isMobile ? (isIOS ? 1.0 : 1.15) : 1.6;
 const renderer = new THREE.WebGLRenderer({
-  antialias: !isMobile,
+  antialias: false,
   powerPreference: 'high-performance',
-  precision: isMobile ? 'mediump' : 'highp',
+  precision: 'highp',
   stencil: false,
   depth: true,
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = isMobile ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
@@ -109,7 +114,7 @@ scene.add(new THREE.HemisphereLight(0x2a4a72, 0x0d1830, 1.6));
 const keyLight = new THREE.DirectionalLight(0xffd5a4, 2.65);
 keyLight.position.set(4, 8, 5);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+keyLight.shadow.mapSize.set(isMobile ? 512 : 2048, isMobile ? 512 : 2048);
 keyLight.shadow.camera.left = -7;
 keyLight.shadow.camera.right = 7;
 keyLight.shadow.camera.top = 7;
@@ -154,7 +159,7 @@ function box(parent, size, position, material, options = {}) {
   mesh.position.set(...position);
   if (options.rotation) mesh.rotation.set(...options.rotation);
   mesh.castShadow = options.castShadow ?? false;
-  mesh.receiveShadow = options.receiveShadow ?? true;
+  mesh.receiveShadow = options.receiveShadow ?? false;
   parent.add(mesh);
   return mesh;
 }
@@ -360,21 +365,23 @@ asphalt.position.y = 0;
 asphalt.receiveShadow = true;
 scene.add(asphalt);
 
-const wetMirror = new THREE.Mesh(
-  new THREE.PlaneGeometry(720, 14),
-  new THREE.MeshPhysicalMaterial({
-    color: 0x445566,
-    roughness: 0.08,
-    metalness: 0.6,
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-  }),
-);
-wetMirror.rotation.x = -Math.PI / 2;
-wetMirror.position.y = 0.002;
-wetMirror.renderOrder = 1;
-scene.add(wetMirror);
+if (!isMobile) {
+  const wetMirror = new THREE.Mesh(
+    new THREE.PlaneGeometry(720, 14),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x445566,
+      roughness: 0.08,
+      metalness: 0.6,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    }),
+  );
+  wetMirror.rotation.x = -Math.PI / 2;
+  wetMirror.position.y = 0.002;
+  wetMirror.renderOrder = 1;
+  scene.add(wetMirror);
+}
 
 const roadPaint = new THREE.MeshStandardMaterial({ color: 0xe0e1d6, roughness: 0.5, metalness: 0.05 });
 const roadEdgePaint = new THREE.MeshStandardMaterial({ color: 0xd0d1c6, roughness: 0.54, metalness: 0.03 });
@@ -1900,7 +1907,7 @@ function addWindowInstances(parent, placements, size, material) {
   });
   mesh.instanceMatrix.needsUpdate = true;
   mesh.castShadow = false;
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
   parent.add(mesh);
 }
 
@@ -3742,7 +3749,7 @@ function resize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
 }
 window.addEventListener('resize', resize);
 
