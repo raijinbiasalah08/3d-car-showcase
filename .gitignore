@@ -10,8 +10,18 @@ android/.gradle/
 android/app/build/
 android/build/
 android/captures/
+**/local.properties
+**/.gradle/
+**/build/
 *.apk
 *.aab
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+coverage/
 
 # Scratch and debug files
 scratch/
@@ -22,4 +32,5 @@ scratch/
 Thumbs.db
 .vscode/
 .idea/
+*.iml
 .vercel
