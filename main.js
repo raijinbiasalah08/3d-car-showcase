@@ -3756,6 +3756,17 @@ document.querySelectorAll('.steer-btn').forEach((btn) => {
   });
 });
 
+const selectorToggle = document.getElementById('selector-toggle');
+const selectorRows = document.getElementById('selector-rows');
+selectorToggle?.addEventListener('click', () => {
+  const isExpanded = selectorToggle.getAttribute('aria-expanded') === 'true';
+  const nextLabel = isExpanded ? 'Show vehicle choices' : 'Hide vehicle choices';
+  selectorToggle.setAttribute('aria-expanded', String(!isExpanded));
+  selectorToggle.setAttribute('aria-label', nextLabel);
+  selectorToggle.setAttribute('title', nextLabel);
+  if (selectorRows) selectorRows.hidden = isExpanded;
+});
+
 // ─── Touch Driving Controls (Mobile & Tablet) ─────────────────────────────────
 function updateTouchSteering() {
   const left = keysDown.has('arrowleft') || keysDown.has('a');

@@ -84,6 +84,37 @@
       .gesture span { white-space: nowrap; }
       .gesture b { font-weight: 500; opacity: .7; margin-right: 5px; }
 
+      .car-title-line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .selector-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        min-height: 30px;
+        padding: 0 9px;
+        border: 1px solid rgba(255, 255, 255, .28);
+        border-radius: 16px;
+        background: rgba(13, 17, 23, .72);
+        color: rgba(241, 243, 237, .9);
+        font: 500 8px 'DM Mono', Consolas, monospace;
+        letter-spacing: .08em;
+        cursor: pointer;
+        pointer-events: auto;
+        touch-action: manipulation;
+        transition: background .18s ease, border-color .18s ease, color .18s ease;
+      }
+      .selector-toggle:hover, .selector-toggle:focus-visible {
+        background: rgba(255, 255, 255, .18);
+        border-color: rgba(255, 255, 255, .55);
+        color: #fff;
+      }
+      .selector-toggle:focus-visible { outline: 2px solid #00e5ff; outline-offset: 2px; }
+      .selector-toggle svg { width: 13px; height: 13px; fill: currentColor; }
+
       .selector-rows {
         display: flex;
         flex-direction: column;
@@ -91,6 +122,7 @@
         margin-top: 10px;
         pointer-events: auto;
       }
+      .selector-rows[hidden] { display: none; }
       .selector-row {
         display: flex;
         align-items: center;
@@ -238,7 +270,7 @@
         }
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-2WfAaxt_.js"></script>
+    <script type="module" crossorigin src="./assets/index-BuGjKkv2.js"></script>
   </head>
   <body>
     <main class="hud" aria-label="Automotive 3D presentation">
@@ -247,8 +279,14 @@
           <div class="monogram" id="car-monogram" aria-hidden="true">V</div>
           <div>
             <p class="eyebrow" id="car-category">Advanced design studio</p>
-            <h1 id="car-title">VERDE <span style="font-weight:400; opacity:.58">R1</span></h1>
-            <div class="selector-rows">
+            <div class="car-title-line">
+              <h1 id="car-title">VERDE <span style="font-weight:400; opacity:.58">R1</span></h1>
+              <button class="selector-toggle" id="selector-toggle" type="button" aria-label="Hide vehicle choices" aria-expanded="true" aria-controls="selector-rows" title="Hide vehicle choices">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4 2 1.5a7.8 7.8 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 1.7-1l2.3.9 2-3.4-2-1.5ZM13 14.7a3 3 0 1 1 0-5.4 3 3 0 0 1 0 5.4Z"/></svg>
+                <span>SETTINGS</span>
+              </button>
+            </div>
+            <div class="selector-rows" id="selector-rows">
               <div class="selector-row">
                 <span class="selector-label">MODEL</span>
                 <div class="car-selector" id="car-selector" aria-label="Select Car">
