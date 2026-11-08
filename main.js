@@ -135,7 +135,15 @@ function enableVehicleShadows(root) {
   if (!root) return;
   root.traverse((c) => {
     if (c.isMesh) {
-      c.castShadow = true;
+      if (isMobile) {
+        const p = c.geometry && c.geometry.parameters;
+        const isMicroTrim = p && ((p.width && p.width < 0.25) || (p.radius && p.radius < 0.12));
+        if (!isMicroTrim) {
+          c.castShadow = true;
+        }
+      } else {
+        c.castShadow = true;
+      }
       c.receiveShadow = true;
     }
   });
@@ -389,12 +397,22 @@ for (const side of [-1, 1]) {
   addRoadBox([720, 0.08, 0.16], [0, 0.04, side * 6.85], curbLight);
 }
 
+const roadDashesGroup = new THREE.Group();
+scene.add(roadDashesGroup);
+const dashGeom = new THREE.BoxGeometry(3.8, 0.018, 0.105);
+const dashInst = new THREE.InstancedMesh(dashGeom, roadPaint, 96);
+const dummyDash = new THREE.Object3D();
+let dashIdx = 0;
 for (const side of [-1, 1]) {
   for (let i = 0; i < 48; i += 1) {
-    const dash = addRoadBox([3.8, 0.018, 0.105], [-235 + i * 10, 0.009, side * 3.15], roadPaint);
-    roadMarkings.push(dash);
+    dummyDash.position.set(-235 + i * 10, 0.009, side * 3.15);
+    dummyDash.updateMatrix();
+    dashInst.setMatrixAt(dashIdx++, dummyDash.matrix);
   }
 }
+dashInst.instanceMatrix.needsUpdate = true;
+dashInst.receiveShadow = true;
+roadDashesGroup.add(dashInst);
 
 const centerStripeMaterial = new THREE.MeshStandardMaterial({
   color: 0xd0922a,
@@ -420,15 +438,26 @@ addRoadBox([720, 0.045, 0.045], [0, 0.95, -9.45], ironRailingMat);
 addRoadBox([720, 0.035, 0.035], [0, 0.52, -9.45], ironRailingMat);
 addRoadBox([720, 0.035, 0.035], [0, 0.18, -9.45], ironRailingMat);
 
+const postGeom = new THREE.CylinderGeometry(0.035, 0.045, 1.05, 8);
+const finialGeom = new THREE.SphereGeometry(0.045, 8, 6);
+const postInst = new THREE.InstancedMesh(postGeom, ironRailingMat, 220);
+const finialInst = new THREE.InstancedMesh(finialGeom, ironRailingMat, 220);
+const dummyRailing = new THREE.Object3D();
+
 for (let i = 0; i < 220; i++) {
   const x = -350 + i * 3.2;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.05, 8), ironRailingMat);
-  post.position.set(x, 0.52, -9.45);
-  railingGroup.add(post);
-  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), ironRailingMat);
-  finial.position.set(x, 1.05, -9.45);
-  railingGroup.add(finial);
+  dummyRailing.position.set(x, 0.52, -9.45);
+  dummyRailing.updateMatrix();
+  postInst.setMatrixAt(i, dummyRailing.matrix);
+
+  dummyRailing.position.set(x, 1.05, -9.45);
+  dummyRailing.updateMatrix();
+  finialInst.setMatrixAt(i, dummyRailing.matrix);
 }
+postInst.instanceMatrix.needsUpdate = true;
+finialInst.instanceMatrix.needsUpdate = true;
+railingGroup.add(postInst);
+railingGroup.add(finialInst);
 
 // ─── Shared Automotive Materials ─────────────────────────────────────────────
 const rubberMat = new THREE.MeshStandardMaterial({ color: 0x111315, roughness: 0.82, metalness: 0.05 });
@@ -1280,7 +1309,18 @@ function setActiveRoute(index) {
 }
 
 // ─── AMBIENT ROAD TRAFFIC ─────────────────────────────────────────────────────
-const trafficSlots = [
+const trafficSlots = isMobile ? [
+  {
+    laneZ: -2.0, dir: -1, relSpeed: 20.0, xOffset: 70,
+    currentModel: null, currentRoot: null, wheels: [],
+    physics: { roll: 0, rollVel: 0, pitch: 0, pitchVel: 0, bounceY: 0, bounceVel: 0, yawKick: 0, yawVel: 0, lateralPush: 0, cooldown: 0, brakeIntensity: 0, swerveOffset: 0, targetLaneZ: -2.0 }
+  },
+  {
+    laneZ:  2.3, dir:  1, relSpeed: 15.0, xOffset: 50,
+    currentModel: null, currentRoot: null, wheels: [],
+    physics: { roll: 0, rollVel: 0, pitch: 0, pitchVel: 0, bounceY: 0, bounceVel: 0, yawKick: 0, yawVel: 0, lateralPush: 0, cooldown: 0, brakeIntensity: 0, swerveOffset: 0, targetLaneZ:  2.3 }
+  },
+] : [
   {
     laneZ: -3.1, dir: -1, relSpeed: 21.0, xOffset: 85,
     currentModel: null, currentRoot: null, wheels: [],
@@ -1328,7 +1368,7 @@ function assignTrafficCars() {
     // Build a dedicated, independent 3D car model instance for this slot
     const meta = CAR_CATALOG[modelIndex];
     const carInstance = { ...meta, ...meta.builder() };
-    enableVehicleShadows(carInstance.root);
+    if (!isMobile) enableVehicleShadows(carInstance.root);
     slotGroup.add(carInstance.root);
 
     if (slot.dir < 0) {
@@ -1495,7 +1535,7 @@ function makeIntersection(x) {
   movingWorld.push({ group, lowerBound: -260, wrapSpan: 520 });
 }
 
-for (const x of [-195, -65, 65, 195]) {
+for (const x of (isMobile ? [-65, 130] : [-195, -65, 65, 195])) {
   makeIntersection(x);
 }
 
@@ -1667,6 +1707,8 @@ function buildCompleteBrooklynBridge() {
   // 4. Four Continuous Main Suspension Cables across All 3 Spans
   const saddleY = 59.5;
   const cableOffsets = [-7.6, -2.6, 2.6, 7.6];
+  const greenBeadPts = [];
+  const whiteBeadPts = [];
 
   cableOffsets.forEach((offset, cIdx) => {
     const offVec = perpDir.clone().multiplyScalar(offset);
@@ -1694,45 +1736,65 @@ function buildCompleteBrooklynBridge() {
     // Glowing Necklace Lights along all 4 cables
     const samples = catenary.getPoints(52);
     samples.forEach((pt, sIdx) => {
-      const isGreen = sIdx % 2 === 0;
-      const mat = isGreen ? necklaceGreenMat : necklaceWhiteMat;
-      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 6, 4), mat);
-      bead.position.copy(pt);
-      bridge.add(bead);
+      if (sIdx % 2 === 0) greenBeadPts.push(pt);
+      else whiteBeadPts.push(pt);
     });
 
     // Vertical suspender wire ropes connecting catenary cables to deck
-    for (let s = 2; s < samples.length - 2; s += 2) {
-      const pt = samples[s];
-      if (pt.y > deckY + 1.2) {
-        cylinder(bridge, 0.035, 0.035, pt.y - deckY, 4, [pt.x, (pt.y + deckY) / 2, pt.z], null, cableSteelMat);
+    if (!isMobile) {
+      for (let s = 2; s < samples.length - 2; s += 2) {
+        const pt = samples[s];
+        if (pt.y > deckY + 1.2) {
+          cylinder(bridge, 0.035, 0.035, pt.y - deckY, 4, [pt.x, (pt.y + deckY) / 2, pt.z], null, cableSteelMat);
+        }
       }
     }
   });
 
-  // 5. Roebling's Iconic Radiating Diagonal Stay Wire Ropes
-  const towers = [
-    { pos: posTowerB, saddleY: saddleY },
-    { pos: posTowerM, saddleY: saddleY }
-  ];
-
-  const deckDirNorm = bridgeDir.clone().normalize();
-
-  towers.forEach(tInfo => {
-    cableOffsets.forEach(cOff => {
-      const offVec = perpDir.clone().multiplyScalar(cOff);
-      const saddlePt = tInfo.pos.clone().add(offVec).setY(tInfo.saddleY - 1.2);
-
-      // Radiate in both directions along the deck to form the spiderweb fan
-      for (let dir of [-1, 1]) {
-        for (let d = 1; d <= 8; d++) {
-          const deckTarget = tInfo.pos.clone().add(offVec).add(deckDirNorm.clone().multiplyScalar(dir * d * 10));
-          deckTarget.y = deckY + 1.2;
-          beamBetween(bridge, [saddlePt.x, saddlePt.y, saddlePt.z], [deckTarget.x, deckTarget.y, deckTarget.z], 0.028, cableSteelMat);
-        }
-      }
-    });
+  const beadGeom = new THREE.SphereGeometry(0.35, 6, 4);
+  const greenInst = new THREE.InstancedMesh(beadGeom, necklaceGreenMat, greenBeadPts.length);
+  const whiteInst = new THREE.InstancedMesh(beadGeom, necklaceWhiteMat, whiteBeadPts.length);
+  const dummyBead = new THREE.Object3D();
+  greenBeadPts.forEach((pt, idx) => {
+    dummyBead.position.copy(pt);
+    dummyBead.updateMatrix();
+    greenInst.setMatrixAt(idx, dummyBead.matrix);
   });
+  whiteBeadPts.forEach((pt, idx) => {
+    dummyBead.position.copy(pt);
+    dummyBead.updateMatrix();
+    whiteInst.setMatrixAt(idx, dummyBead.matrix);
+  });
+  greenInst.instanceMatrix.needsUpdate = true;
+  whiteInst.instanceMatrix.needsUpdate = true;
+  bridge.add(greenInst);
+  bridge.add(whiteInst);
+
+  // 5. Roebling's Iconic Radiating Diagonal Stay Wire Ropes
+  if (!isMobile) {
+    const towers = [
+      { pos: posTowerB, saddleY: saddleY },
+      { pos: posTowerM, saddleY: saddleY }
+    ];
+
+    const deckDirNorm = bridgeDir.clone().normalize();
+
+    towers.forEach(tInfo => {
+      cableOffsets.forEach(cOff => {
+        const offVec = perpDir.clone().multiplyScalar(cOff);
+        const saddlePt = tInfo.pos.clone().add(offVec).setY(tInfo.saddleY - 1.2);
+
+        // Radiate in both directions along the deck to form the spiderweb fan
+        for (let dir of [-1, 1]) {
+          for (let d = 1; d <= 8; d++) {
+            const deckTarget = tInfo.pos.clone().add(offVec).add(deckDirNorm.clone().multiplyScalar(dir * d * 10));
+            deckTarget.y = deckY + 1.2;
+            beamBetween(bridge, [saddlePt.x, saddlePt.y, saddlePt.z], [deckTarget.x, deckTarget.y, deckTarget.z], 0.028, cableSteelMat);
+          }
+        }
+      });
+    });
+  }
 
   return bridge;
 }
@@ -1759,8 +1821,10 @@ function buildFDRHighway() {
   box(fdr, [fdrLength, 0.45, 11.5], [0, deckY + 4.2, fdrZ], fdrConcreteMat);
 
   // Concrete support piers
-  for (let i = 0; i < 22; i++) {
-    const x = -180 + i * 18;
+  const pierCount = isMobile ? 11 : 22;
+  const pierStep = isMobile ? 36 : 18;
+  for (let i = 0; i < pierCount; i++) {
+    const x = -180 + i * pierStep;
     cylinder(fdr, 0.45, 0.55, deckY + 4.2, 10, [x, (deckY + 4.2) / 2, fdrZ - 4.5], null, fdrConcreteMat);
     cylinder(fdr, 0.45, 0.55, deckY + 4.2, 10, [x, (deckY + 4.2) / 2, fdrZ + 4.5], null, fdrConcreteMat);
   }
@@ -2177,10 +2241,12 @@ manhattanSkylineGroup.add(buildCurvedFlyovers());
 manhattanSkylineGroup.add(buildWoolworthBuilding(38, -84));
 manhattanSkylineGroup.add(buildConstructionSkyscraper(-18, -78));
 manhattanSkylineGroup.add(buildPyramidSkyscraper(-56, -92));
-manhattanSkylineGroup.add(buildBrickApartmentBlock(85, -72));
-manhattanSkylineGroup.add(buildBrickApartmentBlock(-105, -76));
-manhattanSkylineGroup.add(buildBrickApartmentBlock(125, -88));
-manhattanSkylineGroup.add(buildBrickApartmentBlock(-140, -82));
+if (!isMobile) {
+  manhattanSkylineGroup.add(buildBrickApartmentBlock(85, -72));
+  manhattanSkylineGroup.add(buildBrickApartmentBlock(-105, -76));
+  manhattanSkylineGroup.add(buildBrickApartmentBlock(125, -88));
+  manhattanSkylineGroup.add(buildBrickApartmentBlock(-140, -82));
+}
 
 // Fill out remaining Manhattan high-rise towers
 const skylinePositions = [
@@ -2198,7 +2264,7 @@ const skylinePositions = [
   [-48,  -112, 14, 88, 14, 'warm', 12],
   [22,   -116, 22, 92, 22, 'cool', 13],
 ];
-skylinePositions.forEach(([x, z, w, h, d, col, s]) => {
+(isMobile ? skylinePositions.filter((_, i) => i % 2 === 0) : skylinePositions).forEach(([x, z, w, h, d, col, s]) => {
   manhattanSkylineGroup.add(buildSkylineTower(x, z, w, h, d, col, s));
 });
 
@@ -2315,11 +2381,15 @@ function makeRandomBuilding(x, side, index, isBackRow = false) {
 
 // Generate randomized street buildings (Row 1: front urban canyon, Row 2: background skyscrapers)
 const inlandSide = 1;
-for (let i = 0; i < 38; i++) {
-  makeRandomBuilding(-247 + i * 14, inlandSide, i, false);
+const row1Count = isMobile ? 18 : 38;
+const row1Step  = isMobile ? 28 : 14;
+for (let i = 0; i < row1Count; i++) {
+  makeRandomBuilding(-247 + i * row1Step, inlandSide, i, false);
 }
-for (let i = 0; i < 28; i++) {
-  makeRandomBuilding(-247 + i * 18, inlandSide, i, true);
+const row2Count = isMobile ? 12 : 28;
+const row2Step  = isMobile ? 42 : 18;
+for (let i = 0; i < row2Count; i++) {
+  makeRandomBuilding(-247 + i * row2Step, inlandSide, i, true);
 }
 
 // ─── Streetlights ─────────────────────────────────────────────────────────────
@@ -2380,7 +2450,7 @@ function makeStreetlight(x, side) {
 
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.14, 7.2, 14), lampBody);
   pole.position.y = 3.65;
-  pole.castShadow = true;
+  pole.castShadow = false;
   group.add(pole);
 
   const inward = -side;
@@ -2391,12 +2461,12 @@ function makeStreetlight(x, side) {
     new THREE.Vector3(0, 7.16, inward * 1.5),
   ]);
   const arm = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 24, 0.052, 8, false), lampBody);
-  arm.castShadow = true;
+  arm.castShadow = false;
   group.add(arm);
 
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.14, 0.34), lampBody);
   head.position.set(0, 7.15, inward * 1.55);
-  head.castShadow = true;
+  head.castShadow = false;
   group.add(head);
 
   const panel = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.025, 0.23), lampGlow);
@@ -2418,9 +2488,10 @@ function makeStreetlight(x, side) {
   movingWorld.push({ group, lowerBound: -250, wrapSpan: 500 });
 }
 
+const lightCount = isMobile ? 8 : 17;
 for (const side of [-1, 1]) {
-  for (let i = 0; i < 17; i += 1) {
-    makeStreetlight(-232 + i * 29, side);
+  for (let i = 0; i < lightCount; i += 1) {
+    makeStreetlight(-232 + i * (500 / lightCount), side);
   }
 }
 
@@ -2434,44 +2505,58 @@ function makeBench(x, side) {
   // Waterfront benches face toward the river & Brooklyn Bridge
   if (side < 0) group.rotation.y = Math.PI;
 
-  for (let s = 0; s < 4; s++) {
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.07, 0.14), benchWood);
-    slat.position.set(0, 0.46, -0.26 + s * 0.18);
-    slat.castShadow = true;
-    slat.receiveShadow = true;
-    group.add(slat);
-  }
+  if (isMobile) {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.07, 0.52), benchWood);
+    seat.position.set(0, 0.46, 0.0);
+    seat.receiveShadow = true;
+    group.add(seat);
 
-  for (let s = 0; s < 3; s++) {
-    const slat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.065, 0.1), benchWood);
-    slat.position.set(0, 0.72 + s * 0.14, 0.26);
-    slat.rotation.x = 0.14;
-    slat.castShadow = true;
-    group.add(slat);
-  }
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.42, 0.08), benchWood);
+    back.position.set(0, 0.76, 0.24);
+    group.add(back);
 
-  for (const lr of [-1, 1]) {
-    const fl = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.44, 0.055), benchMetal);
-    fl.position.set(lr * 0.65, 0.22, -0.26);
-    fl.castShadow = true;
-    group.add(fl);
-    const rl = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.5, 0.055), benchMetal);
-    rl.position.set(lr * 0.65, 0.3, 0.26);
-    rl.rotation.x = 0.22;
-    rl.castShadow = true;
-    group.add(rl);
-    const br = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.6), benchMetal);
-    br.position.set(lr * 0.65, 0.16, 0.0);
-    group.add(br);
+    for (const lr of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.44, 0.46), benchMetal);
+      leg.position.set(lr * 0.62, 0.22, 0.0);
+      group.add(leg);
+    }
+  } else {
+    for (let s = 0; s < 4; s++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.07, 0.14), benchWood);
+      slat.position.set(0, 0.46, -0.26 + s * 0.18);
+      slat.receiveShadow = true;
+      group.add(slat);
+    }
+
+    for (let s = 0; s < 3; s++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.065, 0.1), benchWood);
+      slat.position.set(0, 0.72 + s * 0.14, 0.26);
+      slat.rotation.x = 0.14;
+      group.add(slat);
+    }
+
+    for (const lr of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.44, 0.055), benchMetal);
+      fl.position.set(lr * 0.65, 0.22, -0.26);
+      group.add(fl);
+      const rl = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.5, 0.055), benchMetal);
+      rl.position.set(lr * 0.65, 0.3, 0.26);
+      rl.rotation.x = 0.22;
+      group.add(rl);
+      const br = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.6), benchMetal);
+      br.position.set(lr * 0.65, 0.16, 0.0);
+      group.add(br);
+    }
   }
 
   scene.add(group);
   movingWorld.push({ group, lowerBound: -260, wrapSpan: 520 });
 }
 
+const benchTotal = isMobile ? 5 : 13;
 for (const side of [-1, 1]) {
-  for (let i = 0; i < 13; i++) {
-    makeBench(-220 + i * 40 + (side > 0 ? 0 : 20), side);
+  for (let i = 0; i < benchTotal; i++) {
+    makeBench(-220 + i * (500 / benchTotal) + (side > 0 ? 0 : 20), side);
   }
 }
 
@@ -2500,23 +2585,25 @@ function makeStreetTree(x, side, seed) {
   const trunkHeight = 3.6 + seeded(seed) * 0.8;
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.15, trunkHeight, 8), treeBarkMat);
   trunk.position.y = trunkHeight / 2;
-  trunk.castShadow = true;
   trunk.receiveShadow = true;
   group.add(trunk);
 
-  for (let b = 0; b < 3; b++) {
-    const bAngle = (b / 3) * Math.PI * 2 + seeded(seed + b) * 0.5;
-    const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 1.4, 6), treeBarkMat);
-    branch.position.set(Math.sin(bAngle) * 0.35, trunkHeight - 0.4 + b * 0.25, Math.cos(bAngle) * 0.35);
-    branch.rotation.z = Math.cos(bAngle) * 0.55;
-    branch.rotation.x = Math.sin(bAngle) * 0.55;
-    branch.castShadow = true;
-    group.add(branch);
+  if (!isMobile) {
+    for (let b = 0; b < 3; b++) {
+      const bAngle = (b / 3) * Math.PI * 2 + seeded(seed + b) * 0.5;
+      const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 1.4, 6), treeBarkMat);
+      branch.position.set(Math.sin(bAngle) * 0.35, trunkHeight - 0.4 + b * 0.25, Math.cos(bAngle) * 0.35);
+      branch.rotation.z = Math.cos(bAngle) * 0.55;
+      branch.rotation.x = Math.sin(bAngle) * 0.55;
+      group.add(branch);
+    }
   }
 
   const canopyGroup = new THREE.Group();
   canopyGroup.position.y = trunkHeight + 0.6;
-  const clusterOffsets = [
+  const clusterOffsets = isMobile ? [
+    [0, 0.5, 0, 1.65],
+  ] : [
     [0, 0.3, 0, 1.45],
     [0.75, 0.1, 0.45, 1.1],
     [-0.7, 0.05, -0.4, 1.15],
@@ -2529,7 +2616,6 @@ function makeStreetTree(x, side, seed) {
     const mat = treeCanopyMats[idx % treeCanopyMats.length];
     const foliage = new THREE.Mesh(new THREE.DodecahedronGeometry(scale, 1), mat);
     foliage.position.set(cx, cy, cz);
-    foliage.castShadow = true;
     foliage.receiveShadow = true;
     canopyGroup.add(foliage);
   });
@@ -2539,9 +2625,10 @@ function makeStreetTree(x, side, seed) {
   movingWorld.push({ group, lowerBound: -260, wrapSpan: 520 });
 }
 
+const treeTotal = isMobile ? 6 : 15;
 for (const side of [-1, 1]) {
-  for (let i = 0; i < 15; i++) {
-    makeStreetTree(-238 + i * 35 + (side > 0 ? 0 : 17), side, i * 13 + (side > 0 ? 5 : 43));
+  for (let i = 0; i < treeTotal; i++) {
+    makeStreetTree(-238 + i * (500 / treeTotal) + (side > 0 ? 0 : 17), side, i * 13 + (side > 0 ? 5 : 43));
   }
 }
 
@@ -2612,13 +2699,13 @@ function buildSkywayRoute() {
     const bZ = s * (width / 2 - 0.3);
     box(skyway, [length, 0.88, 0.38], [0, deckY + 0.44, bZ], fdrConcreteMat);
     box(skyway, [length, 0.08, 0.08], [0, deckY + 0.96, bZ], steelTrussMat);
-    for (let x = -350; x < 350; x += 16) {
+    for (let x = -350; x < 350; x += (isMobile ? 32 : 16)) {
       box(skyway, [0.08, 0.15, 0.04], [x, deckY + 0.65, bZ + (s > 0 ? -0.2 : 0.2)], s > 0 ? trafficHeadlights : trafficTaillights);
     }
   }
 
   // 5. Massive Concrete Viaduct Columns down to ground level (placed safely at z = ±7.2, outside road)
-  for (let x = -350; x <= 350; x += 35) {
+  for (let x = -350; x <= 350; x += (isMobile ? 50 : 35)) {
     cylinder(skyway, 0.5, 0.62, deckY - 0.7, 10, [x, (deckY - 0.7) / 2, -7.2], null, fdrConcreteMat);
     cylinder(skyway, 0.5, 0.62, deckY - 0.7, 10, [x, (deckY - 0.7) / 2,  7.2], null, fdrConcreteMat);
     box(skyway, [2.2, 0.85, 15.6], [x, deckY - 0.75, 0], fdrConcreteMat);
@@ -2765,10 +2852,7 @@ function buildDrivableBridgeSpan() {
     box(tower, [4.0, 5.8, 4.0], [0, atticY + atticH + 3.6, 0], bridgeStoneLight);
 
     for (const s of [-1, 1]) {
-      const lamp = new THREE.Mesh(
-        new THREE.SphereGeometry(0.35, 8, 8),
-        new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ee77, emissiveIntensity: 3.5 })
-      );
+      const lamp = new THREE.Mesh(gothicLampGeom, gothicLampMat);
       lamp.position.set(towerD * 0.46, deckY + portalH + 1.2, s * 4.8);
       tower.add(lamp);
     }
@@ -2776,13 +2860,20 @@ function buildDrivableBridgeSpan() {
     span.add(tower);
   }
 
+  const gothicLampGeom = new THREE.SphereGeometry(0.35, 8, 8);
+  const gothicLampMat  = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ee77, emissiveIntensity: 3.5 });
+  const jewelGeom      = new THREE.SphereGeometry(0.24, 6, 6);
+  const jewelMat       = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ee77, emissiveIntensity: 3.2 });
+
   addGothicTower(-140);
   addGothicTower(140);
 
   // Main Catenary Suspension Cables & Radiant Emerald Necklace Lights connected between the towers
+  const cableStep = isMobile ? 24 : 12;
+  const cableLen  = isMobile ? 24.4 : 12.2;
   for (const s of [-1, 1]) {
     const cZ = s * 7.1;
-    for (let x = -280; x <= 280; x += 12) {
+    for (let x = -280; x <= 280; x += cableStep) {
       let cy;
       if (Math.abs(x) <= 140) {
         const u = x / 140;
@@ -2792,12 +2883,9 @@ function buildDrivableBridgeSpan() {
         cy = 54.0 - u * 27.0;
       }
 
-      box(span, [12.2, 0.18, 0.18], [x, cy, cZ], cableSteelMat);
+      box(span, [cableLen, 0.18, 0.18], [x, cy, cZ], cableSteelMat);
 
-      const lightJewel = new THREE.Mesh(
-        new THREE.SphereGeometry(0.24, 6, 6),
-        new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ee77, emissiveIntensity: 3.2 })
-      );
+      const lightJewel = new THREE.Mesh(jewelGeom, jewelMat);
       lightJewel.position.set(x, cy - 0.25, cZ);
       span.add(lightJewel);
 
@@ -3112,6 +3200,57 @@ function makePersonVariant(skinColor, hairColor, shirtColor) {
 
   const group = new THREE.Group();
 
+  if (isMobile) {
+    // Highly optimized mobile pedestrian: 6 meshes, 0 shadow passes
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.46, 0.22), shm);
+    torso.position.y = 1.28;
+    group.add(torso);
+
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), sm);
+    face.position.y = 1.735;
+    group.add(face);
+
+    function makeMobileLeg(xOffset) {
+      const hip = new THREE.Group();
+      hip.position.set(xOffset, HIP_Y, 0);
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.5, 3, 6), personJeansMat);
+      leg.position.y = -0.32;
+      hip.add(leg);
+      const knee = new THREE.Group();
+      hip.add(knee);
+      return { hip, knee };
+    }
+
+    const leftLegData  = makeMobileLeg(-0.09);
+    const rightLegData = makeMobileLeg( 0.09);
+    group.add(leftLegData.hip);
+    group.add(rightLegData.hip);
+
+    function makeMobileArm(xOffset) {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(xOffset, 1.465, 0);
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.42, 3, 6), shm);
+      arm.position.y = -0.24;
+      shoulder.add(arm);
+      return shoulder;
+    }
+
+    const leftArm  = makeMobileArm(-0.185);
+    const rightArm = makeMobileArm( 0.185);
+    group.add(leftArm);
+    group.add(rightArm);
+
+    return {
+      group,
+      leftArm,
+      rightArm,
+      leftHip:   leftLegData.hip,
+      leftKnee:  leftLegData.knee,
+      rightHip:  rightLegData.hip,
+      rightKnee: rightLegData.knee,
+    };
+  }
+
   // ── Legs (using clone of jeans, skin for boot) ──
   function makeVLeg(xOffset) {
     const hip = new THREE.Group();
@@ -3261,7 +3400,7 @@ function makePersonVariant(skinColor, hairColor, shirtColor) {
   };
 }
 
-const walkerTotal = isMobile ? 12 : 42;
+const walkerTotal = isMobile ? 8 : 42;
 for (let i = 0; i < walkerTotal; i++) {
   const lane = walkerLanes[i % walkerLanes.length];
   const skinColor  = skinPalette[Math.floor(seeded(i * 7) * skinPalette.length)];
@@ -3732,10 +3871,8 @@ renderer.setAnimationLoop((time) => {
   }
 
   // 2. Road Markings & Moving Environment Wrapping
-  for (const marker of roadMarkings) {
-    marker.position.x -= speed * delta;
-    if (marker.position.x < -245) marker.position.x += 480;
-  }
+  roadDashesGroup.position.x -= speed * delta;
+  if (roadDashesGroup.position.x < -10) roadDashesGroup.position.x += 10;
 
   for (const item of movingWorld) {
     item.group.position.x -= speed * delta;
