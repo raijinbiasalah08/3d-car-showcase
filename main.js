@@ -10,18 +10,24 @@ const isIOS = typeof navigator !== 'undefined' && (
 );
 const isMobile = isIOS || (typeof navigator !== 'undefined' && /Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) ||
   (typeof window !== 'undefined' && (window.innerWidth <= 1024 || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)));
+const mobileMemory = typeof navigator !== 'undefined' ? Number(navigator.deviceMemory || 0) : 0;
+const mobileCores = typeof navigator !== 'undefined' ? Number(navigator.hardwareConcurrency || 0) : 0;
+const isLowEndMobile = isMobile && ((mobileMemory > 0 && mobileMemory <= 4) || (mobileCores > 0 && mobileCores <= 4));
+const mobileDprCap = isLowEndMobile ? 0.72 : 0.86;
 
 // ─── Scene & Renderer ─────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 // Breathtaking cinematic dusk twilight sky gradient matching the reference photo
 function makeDuskSkyTexture() {
+  const skySize = isMobile ? 512 : 1024;
+  const skyScale = skySize / 1024;
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 1024;
+  canvas.width = skySize;
+  canvas.height = skySize;
   const ctx = canvas.getContext('2d');
 
   // Multi-stop dusk twilight gradient from deep zenith navy/cyan to warm glowing sunset horizon
-  const grad = ctx.createLinearGradient(0, 0, 0, 1024);
+  const grad = ctx.createLinearGradient(0, 0, 0, skySize);
   grad.addColorStop(0.00, '#061324'); // deep midnight navy
   grad.addColorStop(0.24, '#0c2642'); // deep twilight azure
   grad.addColorStop(0.48, '#18446c'); // cerulean evening blue
@@ -33,15 +39,15 @@ function makeDuskSkyTexture() {
   grad.addColorStop(0.97, '#ffd094'); // golden horizon light
   grad.addColorStop(1.00, '#101b28'); // horizon haze blending into water/ground
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 1024);
+  ctx.fillRect(0, 0, skySize, skySize);
 
   // Wispy horizontal sunset clouds matching the long-exposure clouds in reference photo
   for (let i = 0; i < 30; i++) {
-    const y = 620 + (i / 30) * 310 + (Math.sin(i * 3.7) * 20);
-    const h = 7 + (i % 4) * 6;
+    const y = (620 + (i / 30) * 310 + (Math.sin(i * 3.7) * 20)) * skyScale;
+    const h = (7 + (i % 4) * 6) * skyScale;
     const cloudGrad = ctx.createLinearGradient(0, y, 0, y + h);
     const alpha = 0.05 + Math.sin((i / 30) * Math.PI) * 0.15;
-    if (y < 760) {
+    if (y < 760 * skyScale) {
       cloudGrad.addColorStop(0, 'rgba(40, 75, 115, 0)');
       cloudGrad.addColorStop(0.5, `rgba(180, 95, 85, ${alpha})`);
       cloudGrad.addColorStop(1, 'rgba(40, 75, 115, 0)');
@@ -53,11 +59,11 @@ function makeDuskSkyTexture() {
     ctx.fillStyle = cloudGrad;
     ctx.beginPath();
     ctx.moveTo(0, y + h * 0.5);
-    for (let x = 0; x <= 1024; x += 128) {
-      const cy = y + Math.sin(x * 0.012 + i * 1.1) * h * 0.55;
+    for (let x = 0; x <= skySize; x += 128 * skyScale) {
+      const cy = y + Math.sin((x / skyScale) * 0.012 + i * 1.1) * h * 0.55;
       ctx.lineTo(x, cy);
     }
-    ctx.lineTo(1024, y + h);
+    ctx.lineTo(skySize, y + h);
     ctx.lineTo(0, y + h);
     ctx.closePath();
     ctx.fill();
@@ -76,7 +82,8 @@ scene.fog = new THREE.FogExp2(0x132034, 0.0034);
 const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 500);
 camera.position.set(4.4, 2.65, 7.65);
 
-const maxDPR = isMobile ? (isIOS ? 1.0 : 1.15) : 1.6;
+const maxDPR = isMobile ? mobileDprCap : 1.6;
+let renderPixelRatio = Math.min(window.devicePixelRatio || 1, maxDPR);
 const renderer = new THREE.WebGLRenderer({
   antialias: false,
   powerPreference: 'high-performance',
@@ -84,9 +91,9 @@ const renderer = new THREE.WebGLRenderer({
   stencil: false,
   depth: true,
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
+renderer.setPixelRatio(renderPixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !isMobile;
 renderer.shadowMap.type = isMobile ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -96,7 +103,7 @@ document.body.style.overflow = 'hidden';
 document.body.appendChild(renderer.domElement);
 
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
-scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: isMobile ? 128 : 256 }).texture;
 pmremGenerator.dispose();
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -113,7 +120,7 @@ scene.add(new THREE.HemisphereLight(0x2a4a72, 0x0d1830, 1.6));
 
 const keyLight = new THREE.DirectionalLight(0xffd5a4, 2.65);
 keyLight.position.set(4, 8, 5);
-keyLight.castShadow = true;
+keyLight.castShadow = !isMobile;
 keyLight.shadow.mapSize.set(isMobile ? 512 : 2048, isMobile ? 512 : 2048);
 keyLight.shadow.camera.left = -7;
 keyLight.shadow.camera.right = 7;
@@ -137,18 +144,10 @@ scene.add(moonLight);
 
 // ─── Universal Modeling Helpers ───────────────────────────────────────────────
 function enableVehicleShadows(root) {
-  if (!root) return;
+  if (!root || isMobile) return;
   root.traverse((c) => {
     if (c.isMesh) {
-      if (isMobile) {
-        const p = c.geometry && c.geometry.parameters;
-        const isMicroTrim = p && ((p.width && p.width < 0.25) || (p.radius && p.radius < 0.12));
-        if (!isMicroTrim) {
-          c.castShadow = true;
-        }
-      } else {
-        c.castShadow = true;
-      }
+      c.castShadow = true;
       c.receiveShadow = true;
     }
   });
@@ -1316,7 +1315,13 @@ function setActiveRoute(index) {
 }
 
 // ─── AMBIENT ROAD TRAFFIC ─────────────────────────────────────────────────────
-const trafficSlots = isMobile ? [
+const trafficSlots = isLowEndMobile ? [
+  {
+    laneZ: -2.0, dir: -1, relSpeed: 20.0, xOffset: 70,
+    currentModel: null, currentRoot: null, wheels: [],
+    physics: { roll: 0, rollVel: 0, pitch: 0, pitchVel: 0, bounceY: 0, bounceVel: 0, yawKick: 0, yawVel: 0, lateralPush: 0, cooldown: 0, brakeIntensity: 0, swerveOffset: 0, targetLaneZ: -2.0 }
+  },
+] : isMobile ? [
   {
     laneZ: -2.0, dir: -1, relSpeed: 20.0, xOffset: 70,
     currentModel: null, currentRoot: null, wheels: [],
@@ -2641,14 +2646,14 @@ for (const side of [-1, 1]) {
 
 // ─── City Glow Accent Point Lights (Waterfront Atmosphere) ───────────────────
 // Amber streetlight halos along the inland side
-const amberCount = isMobile ? 3 : 8;
+const amberCount = isMobile ? 1 : 8;
 for (let i = 0; i < amberCount; i++) {
   const pl = new THREE.PointLight(0xff9933, isMobile ? 3.8 : 3.2, isMobile ? 36 : 28, 2.0);
   pl.position.set(-220 + i * (260 / amberCount), 7.2, 7.8);
   scene.add(pl);
 }
 // Cyan/teal glow from the water-side railing (city-on-water reflection feel)
-const tealCount = isMobile ? 2 : 5;
+const tealCount = isMobile ? 1 : 5;
 for (let i = 0; i < tealCount; i++) {
   const pl = new THREE.PointLight(0x22aaff, isMobile ? 2.4 : 1.8, isMobile ? 30 : 20, 2.2);
   pl.position.set(-175 + i * (260 / tealCount), 3.5, -8.8);
@@ -2662,10 +2667,6 @@ if (!isMobile) {
   const bridgeGlow2 = new THREE.PointLight(0x00ff88, 1.8, 18, 2.0);
   bridgeGlow2.position.set(10, 4, -22);
   scene.add(bridgeGlow2);
-} else {
-  const bridgeGlow = new THREE.PointLight(0x00ff88, 2.2, 28, 2.0);
-  bridgeGlow.position.set(0, 5, -20);
-  scene.add(bridgeGlow);
 }
 
 // ─── ROUTE 1: ELEVATED EXPRESSWAY / SKYWAY (y = 7.8) ───────────────────────────
@@ -3407,7 +3408,7 @@ function makePersonVariant(skinColor, hairColor, shirtColor) {
   };
 }
 
-const walkerTotal = isMobile ? 8 : 42;
+const walkerTotal = isMobile ? (isLowEndMobile ? 3 : 5) : 42;
 for (let i = 0; i < walkerTotal; i++) {
   const lane = walkerLanes[i % walkerLanes.length];
   const skinColor  = skinPalette[Math.floor(seeded(i * 7) * skinPalette.length)];
@@ -3649,21 +3650,24 @@ const moon = makeMoon();
 
 // ─── Headlamps Spotlights ─────────────────────────────────────────────────────
 const headlightTargets = [];
-for (const side of [-1, 1]) {
-  const target = new THREE.Object3D();
-  target.position.set(22, 0.12, car.position.z + side * 0.65);
-  scene.add(target);
-  const beam = new THREE.SpotLight(0xdbeaff, 72, 38, Math.PI / 8, 0.68, 1.4);
-  beam.position.set(2.38, 0.88, car.position.z + side * 0.65);
-  beam.target = target;
-  beam.castShadow = false;
-  scene.add(beam);
-  headlightTargets.push({ beam, target, side });
+if (!isMobile) {
+  for (const side of [-1, 1]) {
+    const target = new THREE.Object3D();
+    target.position.set(22, 0.12, car.position.z + side * 0.65);
+    scene.add(target);
+    const beam = new THREE.SpotLight(0xdbeaff, 72, 38, Math.PI / 8, 0.68, 1.4);
+    beam.position.set(2.38, 0.88, car.position.z + side * 0.65);
+    beam.target = target;
+    beam.castShadow = false;
+    scene.add(beam);
+    headlightTargets.push({ beam, target, side });
+  }
 }
 
 // ─── Input & Dynamic State ───────────────────────────────────────────────────
 const speedDisplay = document.getElementById('speed');
 let speed = 21.7;
+let lastSpeedText = '';
 let driveDistance = 0;
 let previousFrame = 0;
 
@@ -3793,15 +3797,37 @@ function resize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDPR));
+  renderPixelRatio = Math.min(renderPixelRatio, window.devicePixelRatio || 1, maxDPR);
+  renderer.setPixelRatio(renderPixelRatio);
 }
 window.addEventListener('resize', resize);
+
+let mobileQualityTime = 0;
+let mobileFrameTime = 0;
+let mobileFrameCount = 0;
+function adaptMobileResolution(delta) {
+  if (!isMobile) return;
+  mobileQualityTime += delta;
+  mobileFrameTime += delta;
+  mobileFrameCount++;
+  if (mobileQualityTime < 1.5) return;
+
+  const averageFrameTime = mobileFrameTime / Math.max(1, mobileFrameCount);
+  if (averageFrameTime > 0.022 && renderPixelRatio > 0.62) {
+    renderPixelRatio = Math.max(0.62, renderPixelRatio - 0.08);
+    renderer.setPixelRatio(renderPixelRatio);
+  }
+  mobileQualityTime = 0;
+  mobileFrameTime = 0;
+  mobileFrameCount = 0;
+}
 
 // ─── Animation Loop ───────────────────────────────────────────────────────────
 renderer.setAnimationLoop((time) => {
   const delta = previousFrame === 0 ? 0.016 : Math.min((time - previousFrame) / 1000, 0.05);
   previousFrame = time;
   const t = time * 0.001;
+  adaptMobileResolution(delta);
 
   // 1. Vehicle Driving Dynamics & Smooth Progressive Pedals
   const braking = keysDown.has('arrowdown') || keysDown.has('s');
@@ -4203,7 +4229,13 @@ renderer.setAnimationLoop((time) => {
   starfield.material.opacity = 0.88 + Math.sin(t * 1.5) * 0.08;
   moon.position.y = 58 + Math.sin(t * 0.1) * 0.5;
 
-  if (speedDisplay) speedDisplay.textContent = `${Math.round(speed * 3.6).toString().padStart(3, '0')} KM/H`;
+  if (speedDisplay) {
+    const speedText = `${Math.round(speed * 3.6).toString().padStart(3, '0')} KM/H`;
+    if (speedText !== lastSpeedText) {
+      speedDisplay.textContent = speedText;
+      lastSpeedText = speedText;
+    }
+  }
 
   controls.update();
   renderer.render(scene, camera);
