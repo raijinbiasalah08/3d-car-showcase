@@ -104,13 +104,13 @@
         opacity: .45;
         width: 38px;
       }
-      .car-selector, .route-selector {
+      .car-selector, .route-selector, .steer-selector {
         display: flex;
         gap: 5px;
         flex-wrap: wrap;
       }
 
-      .car-btn, .route-btn {
+      .car-btn, .route-btn, .steer-btn {
         font-family: 'DM Mono', Consolas, monospace;
         font-size: 9px;
         letter-spacing: .08em;
@@ -123,7 +123,7 @@
         cursor: pointer;
         transition: all .18s ease;
       }
-      .car-btn:hover, .route-btn:hover {
+      .car-btn:hover, .route-btn:hover, .steer-btn:hover {
         background: rgba(255, 255, 255, 0.22);
         color: #fff;
         border-color: rgba(255, 255, 255, 0.45);
@@ -141,6 +141,13 @@
         border-color: #00e5ff;
         font-weight: 700;
         box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
+      }
+      .steer-btn.active {
+        background: #ffb800;
+        color: #071018;
+        border-color: #ffb800;
+        font-weight: 700;
+        box-shadow: 0 0 12px rgba(255, 184, 0, 0.55);
       }
 
       /* ─── Mobile On-Screen Touch Controls ─── */
@@ -213,8 +220,8 @@
         .edition { font-size: 8px; line-height: 1.4; }
         .descriptor { max-width: 200px; display: none; }
         .gesture { display: none; }
-        .car-selector, .route-selector { gap: 4px; }
-        .car-btn, .route-btn { font-size: 8px; padding: 4px 8px; }
+        .car-selector, .route-selector, .steer-selector { gap: 4px; }
+        .car-btn, .route-btn, .steer-btn { font-size: 8px; padding: 4px 8px; }
         .footline { margin-bottom: 0; }
         .touch-btn {
           width: 54px;
@@ -225,7 +232,7 @@
           background: rgba(18, 26, 36, 0.92);
         }
         .touch-pedal { width: 68px; height: 54px; font-size: 10px; }
-        .monogram, .car-btn, .route-btn {
+        .monogram, .car-btn, .route-btn, .steer-btn {
           backdrop-filter: none;
           -webkit-backdrop-filter: none;
         }
@@ -259,6 +266,15 @@
                   <button class="route-btn" data-route="3">Metropolis</button>
                 </div>
               </div>
+              <div class="selector-row">
+                <span class="selector-label">STEER</span>
+                <div class="steer-selector" id="steer-selector" aria-label="Steering Sensitivity">
+                  <button class="steer-btn" data-steer="0">Comfort</button>
+                  <button class="steer-btn active" data-steer="1">Sport</button>
+                  <button class="steer-btn" data-steer="2">Race</button>
+                  <button class="steer-btn" data-steer="3">Direct</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -277,6 +293,7 @@
           <span><b>04</b>A / D steer</span>
           <span><b>05</b>C switch car</span>
           <span><b>06</b>R switch route</span>
+          <span><b>07</b>T steer mode</span>
         </div>
       </footer>
     </main>

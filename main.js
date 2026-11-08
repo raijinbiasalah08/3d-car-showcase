@@ -3674,12 +3674,47 @@ let throttleInput = 0;
 let brakeInput = 0;
 const keysDown = new Set();
 
+// ─── Steering Sensitivity Presets ───────────────────────────────────────────
+const STEERING_PRESETS = [
+  { id: 'comfort', label: 'Comfort', sens: 0.75, rate: 8.5,  latMax: 4.2 },
+  { id: 'sport',   label: 'Sport',   sens: 1.0,  rate: 12.0, latMax: 5.6 },
+  { id: 'race',    label: 'Race',    sens: 1.45, rate: 17.0, latMax: 7.4 },
+  { id: 'direct',  label: 'Direct',  sens: 2.1,  rate: 24.0, latMax: 9.2 },
+];
+let activeSteerPresetIndex = 1; // Default: Sport (1.0)
+let steeringSensitivity = STEERING_PRESETS[activeSteerPresetIndex].sens;
+
+function setSteeringSensitivity(index) {
+  if (index < 0 || index >= STEERING_PRESETS.length) return;
+  activeSteerPresetIndex = index;
+  steeringSensitivity = STEERING_PRESETS[activeSteerPresetIndex].sens;
+
+  document.querySelectorAll('.steer-btn').forEach((btn, idx) => {
+    btn.classList.toggle('active', idx === activeSteerPresetIndex);
+  });
+
+  try {
+    localStorage.setItem('3d_steer_preset', String(activeSteerPresetIndex));
+  } catch (_) {}
+}
+
+// Restore saved steering preference if present
+try {
+  const saved = localStorage.getItem('3d_steer_preset');
+  if (saved !== null && !isNaN(Number(saved))) {
+    const sIdx = Number(saved);
+    if (sIdx >= 0 && sIdx < STEERING_PRESETS.length) {
+      setSteeringSensitivity(sIdx);
+    }
+  }
+} catch (_) {}
+
 function setSteeringFromKeys(event, pressed) {
   const key = event.key.toLowerCase();
   if (pressed) keysDown.add(key);
   else keysDown.delete(key);
 
-  if (['arrowleft', 'a', 'arrowright', 'd', 'arrowup', 'w', 'arrowdown', 's', 'c', 'r'].includes(key)) {
+  if (['arrowleft', 'a', 'arrowright', 'd', 'arrowup', 'w', 'arrowdown', 's', 'c', 'r', 't'].includes(key)) {
     event.preventDefault();
   }
   if (pressed && key === 'c') {
@@ -3687,6 +3722,9 @@ function setSteeringFromKeys(event, pressed) {
   }
   if (pressed && key === 'r') {
     setActiveRoute((activeRouteIndex + 1) % ROUTES.length);
+  }
+  if (pressed && key === 't') {
+    setSteeringSensitivity((activeSteerPresetIndex + 1) % STEERING_PRESETS.length);
   }
 
   const left = keysDown.has('arrowleft') || keysDown.has('a');
@@ -3705,6 +3743,12 @@ document.querySelectorAll('.car-btn').forEach((btn) => {
 document.querySelectorAll('.route-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     setActiveRoute(Number(btn.dataset.route));
+  });
+});
+
+document.querySelectorAll('.steer-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    setSteeringSensitivity(Number(btn.dataset.steer));
   });
 });
 
@@ -3778,18 +3822,19 @@ renderer.setAnimationLoop((time) => {
 
   driveDistance += speed * delta;
 
-  // 2. Smooth Power Steering & Dynamic Tire Grip
-  const steerRate = targetSteer !== 0 ? 5.8 : 7.8;
+  // 2. Responsive Power Steering & Dynamic Tire Grip with Sensitivity Preset
+  const preset = STEERING_PRESETS[activeSteerPresetIndex] || STEERING_PRESETS[1];
+  const steerRate = targetSteer !== 0 ? preset.rate : preset.rate * 1.35;
   steerAngle += (targetSteer - steerAngle) * Math.min(1.0, steerRate * delta);
 
   // Speed-sensitive steering ratio
-  const speedFactor = 1.0 / (1.0 + Math.max(0, speed - 15) * 0.024);
+  const speedFactor = 1.0 / (1.0 + Math.max(0, speed - 15) * 0.018);
   const effectiveSteer = steerAngle * speedFactor;
 
-  // Viscous tire grip lateral velocity
-  const maxLatSpeed = Math.min(speed * 0.135, 3.6);
+  // Viscous tire grip lateral velocity with sensitivity scaling
+  const maxLatSpeed = Math.min(speed * 0.16, preset.latMax);
   const targetLatVel = effectiveSteer * maxLatSpeed;
-  lateralVelocity += (targetLatVel - lateralVelocity) * Math.min(1.0, 8.2 * delta);
+  lateralVelocity += (targetLatVel - lateralVelocity) * Math.min(1.0, (9.5 * preset.sens) * delta);
 
   // 3. Multi-Route Transition (Elevation, Center Z, Pitch Slope)
   if (routeTransition < 1.0) {
@@ -3837,7 +3882,7 @@ renderer.setAnimationLoop((time) => {
   const kBounce = 160, dBounce = 12.0;
   const kYaw = 95, dYaw = 9.5;
 
-  playerPhysics.rollVel -= lateralVelocity * delta * 4.6;
+  playerPhysics.rollVel -= lateralVelocity * delta * (4.2 * preset.sens);
   if (brakeInput > 0.05) playerPhysics.pitchVel -= brakeInput * delta * 4.2;
   else if (throttleInput > 0.05) playerPhysics.pitchVel += throttleInput * delta * 2.6;
 
@@ -3858,14 +3903,14 @@ renderer.setAnimationLoop((time) => {
   // Apply dynamic suspension transforms to Player Car
   car.position.y = currentBaseY + (Math.sin(t * 9) * 0.006) + playerPhysics.bounceY;
   car.rotation.x = playerPhysics.pitch - currentPitchSlope;
-  const chassisYaw = -effectiveSteer * 0.065 + (lateralVelocity / 3.8) * 0.022 + playerPhysics.yawKick;
+  const chassisYaw = -effectiveSteer * 0.075 * preset.sens + (lateralVelocity / 3.8) * 0.024 + playerPhysics.yawKick;
   car.rotation.y = chassisYaw;
   car.rotation.z = Math.sin(t * 6) * 0.002 + playerPhysics.roll;
 
   // Player Wheels: smooth front steering pivot and rotation spin
   for (const wheel of activeWheels) {
     if (wheel.isFront) {
-      wheel.pivot.rotation.y = -steerAngle * 0.36;
+      wheel.pivot.rotation.y = -steerAngle * 0.38;
     }
     wheel.spin.rotation.z -= (speed * delta) / (wheel.radius || 0.45);
   }
